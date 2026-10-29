@@ -269,3 +269,64 @@ class TaskPermissionTests(APITestCase):
                 description="Task without a title",
             ).exists()
         )
+    
+    def test_non_member_cannot_list_project_tasks(self):
+        self.client.force_authenticate(user=self.non_member)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_manager_cannot_assign_task_to_non_member(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "project": self.project.id,
+                "title": "Invalid Assignment Test",
+                "description": "Assignee is outside the project",
+                "assigned_to": self.non_member.id,
+                "priority": Task.Priority.HIGH,
+                "status": Task.Status.TODO,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertFalse(
+            Task.objects.filter(
+                title="Invalid Assignment Test"
+            ).exists()
+        )
+
+    def test_task_creation_fails_without_title(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.post(
+            self.list_url,
+            {
+                "project": self.project.id,
+                "description": "Task without a title",
+                "priority": Task.Priority.HIGH,
+                "status": Task.Status.TODO,
+            },
+            format="json",
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+        self.assertFalse(
+            Task.objects.filter(
+                project=self.project,
+                description="Task without a title",
+            ).exists()
+        )
